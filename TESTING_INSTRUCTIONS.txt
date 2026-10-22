@@ -1,0 +1,142 @@
+============================================================
+ RESTAURANT FINDER BACKEND - SETUP AUR TESTING GUIDE
+============================================================
+
+BACKEND KI HAALAT
+-----------------
+Ye aapki spec ke mutabiq mukammal backend hai: search endpoint,
+Google Places aur Distance Matrix integration, filtering engine
+aur error handling sab maujood hain.
+
+Ye stateless hai (database nahi). Authentication, rate limiting,
+caching, Dockerfile aur automated tests shamil nahi hain.
+Public deployment se pehle API auth ya rate limiting zaroor
+lagayein, warna koi bhi aapka Google quota kharch kar sakta hai.
+
+
+STEP 1: GOOGLE API KEY HASIL KAREIN
+-----------------------------------
+1. Google Cloud Console mein naya project banayein.
+2. Billing enable karein (free credits ke bawajood zaroori hai).
+3. In dono APIs ko enable karein:
+      - Places API (New)
+      - Distance Matrix API
+4. Credentials mein ja kar API key banayein.
+
+
+STEP 2: SERVER CHALAYEIN
+------------------------
+Zip file unzip karein, phir terminal mein:
+
+   cd restaurant-finder-backend
+   python -m venv .venv
+
+   Linux / Mac:   source .venv/bin/activate
+   Windows:       .venv\Scripts\activate
+
+   pip install -r requirements.txt
+
+   Linux / Mac:   cp .env.example .env
+   Windows:       copy .env.example .env
+
+.env file kholein aur apni asli key likhein:
+
+   GOOGLE_API_KEY=your_real_key_here
+
+Phir server start karein:
+
+   uvicorn app.main:app --reload
+
+
+STEP 3: SERVER CHECK KAREIN
+---------------------------
+Browser mein kholein:
+
+   http://localhost:8000/health
+
+Jawab ye aana chahiye:
+
+   {"status":"ok"}
+
+
+STEP 4: ASLI SEARCH TEST KAREIN
+-------------------------------
+Sab se aasan tareeqa: browser mein kholein
+
+   http://localhost:8000/docs
+
+POST /api/v1/search kholein, "Try it out" dabayein aur ye paste karein:
+
+   {
+     "query": "Biryani",
+     "latitude": 30.1575,
+     "longitude": 71.5249,
+     "radius_km": 5,
+     "min_rating": 4.0,
+     "max_delivery_time_mins": 45,
+     "max_price_level": "MODERATE"
+   }
+
+Ya curl se:
+
+   curl -X POST http://localhost:8000/api/v1/search \
+     -H "Content-Type: application/json" \
+     -d '{"query":"Biryani","latitude":30.1575,"longitude":71.5249,"radius_km":5,"min_rating":4.0,"max_delivery_time_mins":45}'
+
+(Windows CMD mein curl ki jagah /docs page istemal karna aasan hai.)
+
+
+STEP 5: FILTERS KA TEST
+-----------------------
+- max_delivery_time_mins ko 15 ya us se kam karein.
+  Zyada tar khali list aayegi, kyunke 15 minute ka buffer
+  pehle hi poora waqt kha jata hai.
+
+- min_rating ko 4.5 karein. Natayej kam hone chahiye.
+
+- max_price_level ko INEXPENSIVE karein. Mehngi jagahein
+  gayab ho jani chahiye.
+
+- Dekhein ke driving_time_mins ascending order mein hai
+  (sab se tez route pehle).
+
+- Aise waqt search karein jab zyada restaurants band hon.
+  Natayej kam aayenge, kyunke openNow filter laga hua hai.
+
+
+STEP 6: ERROR HANDLING KA TEST
+------------------------------
+- .env mein ghalat key daal kar restart karein aur search karein.
+  Jawab 502 aana chahiye, aur server chalta rehna chahiye.
+
+- "radius_km": 50 bhejein. Jawab 422 aana chahiye
+  (limit 1 se 10 km hai).
+
+- GOOGLE_API_KEY bilkul hata dein. Server ko clear message ke
+  saath start hone se inkaar kar dena chahiye.
+
+
+AAM MASAIL AUR HAL
+------------------
+* 502 aur "HTTP 403":
+    API enable nahi hai, billing band hai, ya key ki
+    restrictions request ko rok rahi hain.
+
+* 502 aur "REQUEST_DENIED":
+    Distance Matrix API key par enable nahi hai.
+
+* Jis query se match ki umeed thi us par khali results:
+    Aapke ilaqe mein is waqt koi khula match nahi, ya
+    delivery-time limit bohat tang hai.
+
+* Browser frontend se connect karna ho:
+    .env mein CORS_ORIGINS ko apne frontend ke URL par set
+    karein, masalan: http://localhost:3000
+
+
+NOTE
+----
+Agar koi error aaye to server ka log output copy kar ke
+bhej dein, taake masla samjha ja sake.
+
+============================================================
